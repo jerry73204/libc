@@ -1,6 +1,11 @@
 [package]
 name = "libc"
-version = "0.2.178"
+# Version-matched to whatever nightly-2026-04-11's std depends on (see
+# ~/.rustup/toolchains/nightly-.../lib/rustlib/src/rust/library/std/Cargo.toml).
+# Cargo's [patch] only applies if the version matches exactly, so this must
+# track the pinned nightly in examples/qemu-arm-nuttx/rust-toolchain.toml.
+# Bump both files together whenever the nightly is updated.
+version = "0.2.183"
 keywords = ["libc", "ffi", "bindings", "operating", "system"]
 categories = ["external-ffi-bindings", "no-std", "os"]
 exclude = ["/ci/*", "/.github/*", "/.cirrus.yml", "/triagebot.toml", "cherry-pick-stable.sh"]

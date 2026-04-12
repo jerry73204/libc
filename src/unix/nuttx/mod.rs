@@ -550,6 +550,7 @@ pub const SIGSYS: c_int = 31;
 
 // pthread.h
 pub const PTHREAD_MUTEX_NORMAL: i32 = 0;
+pub const PTHREAD_MUTEX_RECURSIVE: i32 = 2;
 
 // netinet/in.h
 pub const IP_TTL: i32 = 0x1e;
@@ -582,6 +583,7 @@ extern "C" {
         start_routine: extern "C" fn(*mut c_void) -> *mut c_void,
         arg: *mut c_void,
     ) -> i32;
+    pub fn pthread_cancel(thread: pthread_t) -> i32;
 
     pub fn clock_gettime(clockid: clockid_t, tp: *mut timespec) -> i32;
     pub fn futimens(fd: i32, times: *const timespec) -> i32;

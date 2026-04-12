@@ -70,6 +70,7 @@ s! {
     // linux x32 compatibility
     // See https://sourceware.org/bugzilla/show_bug.cgi?id=16437
     #[cfg(all(not(target_env = "gnu"), not(target_os = "aix")))]
+    #[derive(Default)]
     pub struct timespec {
         pub tv_sec: time_t,
         #[cfg(all(target_arch = "x86_64", target_pointer_width = "32"))]
