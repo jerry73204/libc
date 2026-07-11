@@ -594,3 +594,55 @@ extern "C" {
     pub fn arc4random() -> u32;
     pub fn arc4random_buf(bytes: *mut c_void, nbytes: usize);
 }
+
+// -----------------------------------------------------------------------------
+// #167 — poll() ABI shim (NEWSLabNTU/nano-ros).
+//
+// NuttX's kernel `struct pollfd` (include/sys/poll.h) is 24 bytes on ilp32:
+//   { fd:i32, events:u32, revents:u32, arg:*mut, cb:*mut, priv:*mut }
+// and the flat-build `poll()` writes ALL six fields into the caller's array
+// (`kfds = fds`). Rust std (and this `libc`) use the 8-byte POSIX `pollfd`, so
+// `poll()` overflows a caller's array by 16 bytes per entry and smashes whatever
+// follows it — for std's `sanitize_standard_fds()` (fds 0/1/2 on the entry task's
+// stack) that is the task's saved return address → boot panic (EPC=0x4/0x0).
+//
+// Bridge it with a linker `--wrap=poll` shim: copy each 8-byte caller `pollfd`
+// into a private 24-byte NuttX-layout entry, call the real `poll` (`__real_poll`),
+// and copy `revents` back. The final link MUST pass `-Wl,--wrap=poll`.
+#[repr(C)]
+struct __nuttx_pollfd {
+    fd: c_int,
+    events: c_uint,
+    revents: c_uint,
+    arg: *mut c_void,
+    cb: *mut c_void,
+    priv_: *mut c_void,
+}
+
+extern "C" {
+    fn __real_poll(fds: *mut __nuttx_pollfd, nfds: nfds_t, timeout: c_int) -> c_int;
+}
+
+const __POLL_SHIM_MAX_FDS: usize = 32;
+
+/// `--wrap=poll` interposer that reconciles the 8-byte POSIX `pollfd` used by Rust
+/// with NuttX's 24-byte kernel struct. See the note above.
+#[no_mangle]
+pub unsafe extern "C" fn __wrap_poll(fds: *mut crate::pollfd, nfds: nfds_t, timeout: c_int) -> c_int {
+    let n = nfds as usize;
+    if n > __POLL_SHIM_MAX_FDS {
+        // Rare on embedded; refuse rather than heap-allocate in no_std libc.
+        return -1;
+    }
+    let mut kfds: [__nuttx_pollfd; __POLL_SHIM_MAX_FDS] = core::mem::zeroed();
+    for i in 0..n {
+        let src = &*fds.add(i);
+        kfds[i].fd = src.fd;
+        kfds[i].events = src.events as c_uint;
+    }
+    let ret = __real_poll(kfds.as_mut_ptr(), nfds, timeout);
+    for i in 0..n {
+        (*fds.add(i)).revents = kfds[i].revents as _;
+    }
+    ret
+}
