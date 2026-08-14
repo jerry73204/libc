@@ -256,7 +256,21 @@ s! {
 const __DEFAULT_RESERVED_SIZE__: usize = 2;
 
 const __SOCKADDR_STORAGE_SIZE__: usize = 36;
-const __PTHREAD_ATTR_SIZE__: usize = 5;
+// nano-ros #570 — was 5 (20 bytes on ilp32), which is NuttX's `pthread_attr_t`
+// with CONFIG_SCHED_SPORADIC=n and CONFIG_SMP=n. That layout is not a constant:
+// include/pthread.h appends `repl_period` + `budget` (two `struct timespec`,
+// 16 bytes each under CONFIG_SYSTEM_TIME64) when CONFIG_SCHED_SPORADIC=y and an
+// `affinity` when CONFIG_SMP=y, so a sporadic build's struct is 56 bytes.
+// `pthread_attr_init`/`pthread_attr_destroy` memcpy/memset the FULL 56 into the
+// caller's object, so a 20-byte mirror is a 36-byte stack smash: it ran over
+// `std::sys::thread::unix::Thread::new`'s saved `ra`/`s0`-`s4` and the epilogue
+// returned to address 0 (instruction-access fault, EPC=0).
+//
+// Sized to the LARGEST layout rather than the configured one — this crate cannot
+// see Kconfig, and oversizing is inert (NuttX only ever touches its own sizeof)
+// while undersizing corrupts the caller. Same failure mode as the `--wrap=poll`
+// shim below (24-byte kernel `pollfd` vs 8-byte POSIX one, #167).
+const __PTHREAD_ATTR_SIZE__: usize = 14;
 const __PTHREAD_MUTEX_SIZE__: usize = 9;
 const __PTHREAD_COND_SIZE__: usize = 7;
 const __PTHREAD_CONDATTR_SIZE__: usize = 5;
