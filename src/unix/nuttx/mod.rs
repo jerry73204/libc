@@ -271,11 +271,24 @@ const __SOCKADDR_STORAGE_SIZE__: usize = 36;
 // while undersizing corrupts the caller. Same failure mode as the `--wrap=poll`
 // shim below (24-byte kernel `pollfd` vs 8-byte POSIX one, #167).
 const __PTHREAD_ATTR_SIZE__: usize = 14;
-const __PTHREAD_MUTEX_SIZE__: usize = 9;
-const __PTHREAD_COND_SIZE__: usize = 7;
+// nano-ros #1907 — the semaphore-based types, sized for priority inheritance.
+// Every one of them embeds a `sem_t`, and `struct sem_s` (include/semaphore.h)
+// grows with Kconfig: CONFIG_PRIORITY_INHERITANCE adds a holder pointer, or a
+// whole 20-byte `struct semholder_s` when CONFIG_SEM_PREALLOCHOLDERS=0;
+// CONFIG_PRIORITY_PROTECT adds two bytes (four with padding), and
+// CONFIG_CUSTOM_SEMAPHORE_MAXVALUE four more. nano-ros turned PI on, and
+// `pthread_rwlock_t` (a mutex plus a cond) became 72 bytes against a 68-byte
+// mirror. Sized here for all three options at once, with the embedded holder.
+// Measured on ilp32 (rv32 headers, PREALLOCHOLDERS=0 + PROTECT + MAXVALUE):
+// `sem_t` 40 bytes, `pthread_cond_t` 48, `pthread_mutex_t` 52 and
+// `pthread_rwlock_t` 112; each mirror below leaves a word over.
+// CONFIG_LIBC_MUTEX_BACKTRACE appends a configurable array to a mutex and is
+// not covered.
+const __PTHREAD_MUTEX_SIZE__: usize = 14;
+const __PTHREAD_COND_SIZE__: usize = 13;
 const __PTHREAD_CONDATTR_SIZE__: usize = 5;
-const __PTHREAD_RWLOCK_SIZE__: usize = 17;
-const __SEM_SIZE__: usize = 6;
+const __PTHREAD_RWLOCK_SIZE__: usize = 30;
+const __SEM_SIZE__: usize = 11;
 const __NAME_MAX__: usize = 64;
 const __FDSET_SIZE__: usize = 10;
 const __SIGSET_SIZE__: usize = 8;
